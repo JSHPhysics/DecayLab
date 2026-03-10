@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decay Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f4f0; --surface: #ffffff; --surface2: #eeecea; --border: #d8d5d0;
+    --text: #1a1916; --text-muted: #8a8780; --accent: #c94a2b; --accent-dim: #f0d8d3;
+    --active: #2a6e3f; --active-dim: #d3ead9;
+    --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  .logo { font-family: var(--mono); font-size: 15px; font-weight: 600; letter-spacing: 0.05em; }
+  .logo span { color: var(--accent); }
+  .mode-toggle { display: flex; background: var(--surface2); border-radius: 8px; padding: 3px; gap: 2px; }
+  .mode-btn { font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 7px 16px; border: none; border-radius: 6px; cursor: pointer; background: transparent; color: var(--text-muted); transition: all 0.2s; }
+  .mode-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  .main { display: grid; grid-template-columns: 1fr 320px; flex: 1; min-height: 0; overflow: hidden; }
+  .left-panel { padding: 20px 26px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+
+  /* STATS */
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex-shrink: 0; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; }
+  .stat-label { font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-value { font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1; }
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.active-color { color: var(--active); }
+  .stat-value.small { font-size: 16px; padding-top: 3px; }
+
+  /* CONTENT AREA */
+  .content-area { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; flex: 1; min-height: 220px; display: flex; flex-direction: column; }
+  .content-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface2); flex-shrink: 0; }
+  .content-tab { font-family: var(--sans); font-size: 12px; font-weight: 500; padding: 9px 18px; border: none; background: transparent; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+  .content-tab.active { background: var(--surface); color: var(--text); border-bottom-color: var(--active); }
+  .tab-pane { display: none; flex: 1; min-height: 0; }
+  .tab-pane.active { display: flex; flex-direction: column; }
+
+  /* BUNDLE GRID — canvas fills the pane */
+  #paneGrid { padding: 0; overflow: hidden; }
+  #bundleCanvas { display: block; width: 100%; height: 100%; }
+  .bundle-label { font-family: var(--mono); font-size: 10px; color: var(--text-muted); text-align: right; padding: 4px 12px 6px; flex-shrink: 0; }
+
+  /* CHART PANE */
+  #paneGraph { padding: 12px 14px 8px; }
+  #liveChart { display: block; width: 100%; flex-shrink: 0; }
+  .graph-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: var(--text-muted); align-items: center; flex-shrink: 0; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 3px; vertical-align: middle; }
+
+  /* LOG */
+  .log-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+  .log-top { display: flex; align-items: center; justify-content: space-between; padding: 9px 13px; border-bottom: 1px solid var(--border); }
+  .log-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+  .btn-export { font-family: var(--sans); font-size: 11px; font-weight: 600; padding: 5px 11px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; color: var(--text-muted); transition: all 0.15s; display: flex; align-items: center; gap: 5px; }
+  .btn-export:hover { background: var(--active-dim); border-color: #b0d9bb; color: var(--active); }
+  .btn-export:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+  .log-cols { padding: 7px 14px; border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); display: grid; grid-template-columns: 70px 1fr 1fr 1fr; gap: 8px; }
+  .log-body { max-height: 120px; overflow-y: auto; }
+  .log-row { padding: 7px 14px; display: grid; grid-template-columns: 70px 1fr 1fr 1fr; gap: 8px; font-family: var(--mono); font-size: 11px; border-bottom: 1px solid var(--surface2); }
+  .log-row:last-child { border-bottom: none; }
+  .log-row.latest { background: var(--active-dim); }
+  .log-row .dc { color: var(--accent); }
+  .log-row .rc { color: var(--active); font-weight: 600; }
+
+  /* RIGHT */
+  .right-panel { padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+  .panel-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+  .panel-section-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .panel-body { padding: 13px; display: flex; flex-direction: column; gap: 11px; }
+  label { font-size: 12px; color: var(--text-muted); font-weight: 500; display: block; margin-bottom: 4px; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  input[type="number"] { width: 100%; font-family: var(--mono); font-size: 13px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); outline: none; transition: border-color 0.2s; }
+  input[type="number"]:focus { border-color: var(--active); }
+  .range-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .range-val { font-family: var(--mono); font-weight: 600; color: var(--text); }
+  .condition-group { display: flex; gap: 5px; }
+  .cond-btn { flex: 1; font-family: var(--sans); font-size: 11px; font-weight: 500; padding: 7px 3px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-muted); cursor: pointer; text-align: center; transition: all 0.15s; line-height: 1.4; }
+  .cond-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .btn-primary { width: 100%; padding: 12px; background: var(--active); color: white; border: none; border-radius: 8px; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .btn-primary:hover { background: #236034; }
+  .btn-primary:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
+  .btn-secondary { width: 100%; padding: 8px; background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); border-radius: 8px; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .btn-secondary:hover { background: var(--border); color: var(--text); }
+  .btn-danger { width: 100%; padding: 8px; background: var(--accent-dim); color: var(--accent); border: 1px solid #e8c0b8; border-radius: 8px; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .btn-danger:hover { background: var(--accent); color: white; }
+  .info-box { background: var(--active-dim); border: 1px solid #b0d9bb; border-radius: 8px; padding: 10px 12px; font-size: 11px; color: #1e5530; line-height: 1.6; }
+  .info-box strong { font-weight: 600; }
+  .speed-group { display: flex; gap: 4px; }
+  .speed-btn { flex: 1; font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 6px 3px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-muted); cursor: pointer; text-align: center; transition: all 0.15s; }
+  .speed-btn.active { background: var(--surface2); border-color: var(--text-muted); color: var(--text); }
+  .timer-display { font-family: var(--mono); font-size: 24px; font-weight: 600; text-align: center; padding: 11px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); letter-spacing: 0.05em; }
+  .timer-display.running { color: var(--active); border-color: #b0d9bb; background: var(--active-dim); }
+  .half-life-display { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg); border-radius: 6px; border: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+  .half-life-display span { font-family: var(--mono); font-weight: 600; color: var(--text); }
+  .mode-panel { display: none; }
+  .mode-panel.visible { display: contents; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Performance mode badge */
+  .perf-badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.04em; }
+  .perf-badge.statistical { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+  .perf-badge.individual { background: var(--active-dim); color: var(--active); border: 1px solid #b0d9bb; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">☢ DECAY<span>LAB</span></div>
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="btnDiceMode" onclick="setMode('dice')">🎲 Dice Mode</button>
+    <button class="mode-btn" id="btnNucleiMode" onclick="setMode('nuclei')">⚛ Nuclei Mode</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="left-panel">
+
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-label" id="stepLabel">Roll</div>
+        <div class="stat-value accent" id="statStep">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Remaining</div>
+        <div class="stat-value active-color small" id="statRemaining">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label" id="decayedLabel">Decayed</div>
+        <div class="stat-value small" id="statDecayed">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Fraction</div>
+        <div class="stat-value small" id="statFraction">—</div>
+      </div>
+    </div>
+
+    <div class="content-area">
+      <div class="content-tabs">
+        <button class="content-tab active" onclick="showTab('grid')" id="tabGrid">Grid View</button>
+        <button class="content-tab" onclick="showTab('graph')" id="tabGraph">📈 Live Graph</button>
+      </div>
+      <!-- GRID: canvas-rendered bundles -->
+      <div class="tab-pane active" id="paneGrid">
+        <canvas id="bundleCanvas"></canvas>
+        <div class="bundle-label" id="bundleLabel"></div>
+      </div>
+      <!-- GRAPH -->
+      <div class="tab-pane" id="paneGraph">
+        <canvas id="liveChart"></canvas>
+        <div class="graph-legend">
+          <span><span class="legend-dot" style="background:#2a6e3f"></span>Observed N</span>
+          <span><span class="legend-dot" style="background:rgba(201,74,43,0.55)"></span>Theoretical</span>
+          <span style="margin-left:auto; font-family:var(--mono); font-size:10px; color:var(--text-muted)" id="legendHl"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="log-section">
+      <div class="log-top">
+        <div style="display:flex; align-items:center; gap:10px">
+          <div class="log-title">Data Log</div>
+          <span class="perf-badge individual" id="perfBadge">INDIVIDUAL</span>
+        </div>
+        <button class="btn-export" id="exportBtn" onclick="exportExcel()" disabled>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export .xlsx
+        </button>
+      </div>
+      <div class="log-cols">
+        <div id="logColA">Roll</div><div>Remaining</div><div>Decayed</div><div>Fraction</div>
+      </div>
+      <div class="log-body" id="logBody">
+        <div style="padding:12px; font-size:12px; color:var(--text-muted); text-align:center">Run the simulation to see data here</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+
+    <!-- DICE -->
+    <div class="mode-panel visible" id="diceModePanel">
+      <div class="panel-section">
+        <div class="panel-section-title">Setup</div>
+        <div class="panel-body">
+          <div>
+            <label>Number of Dice <span class="range-val" id="diceCountVal">100</span></label>
+            <input type="range" id="diceCount" min="10" max="300" value="100" step="10" oninput="updateDiceCount()">
+            <div class="range-row"><span>10</span><span>300</span></div>
+          </div>
+          <div>
+            <label>Decay Condition</label>
+            <div class="condition-group">
+              <div class="cond-btn active" id="cond6" onclick="setCondition(1)">Roll a 6<br><small>p=1/6</small></div>
+              <div class="cond-btn" id="cond56" onclick="setCondition(2)">Roll 5–6<br><small>p=1/3</small></div>
+              <div class="cond-btn" id="cond456" onclick="setCondition(3)">Roll 4–6<br><small>p=1/2</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Simulation</div>
+        <div class="panel-body">
+          <div class="half-life-display">Theoretical T½ <span id="diceHalfLife">—</span></div>
+          <button class="btn-primary" id="rollBtn" onclick="rollDice()">ROLL</button>
+          <button class="btn-danger" onclick="resetDice()">Reset</button>
+        </div>
+      </div>
+      <div class="info-box">
+        <strong>How to use:</strong> Roll repeatedly. Switch to <em>Live Graph</em> to watch the decay curve build. Export to .xlsx when done.
+      </div>
+    </div>
+
+    <!-- NUCLEI -->
+    <div class="mode-panel" id="nucleiModePanel">
+      <div class="panel-section">
+        <div class="panel-section-title">Setup</div>
+        <div class="panel-body">
+          <div>
+            <label>Initial Nuclei (N₀)</label>
+            <input type="number" id="nucleiCount" value="200" min="10" max="1000000" step="10">
+            <div style="font-size:10px; color:var(--text-muted); margin-top:3px">Up to 1,000,000 — large N uses statistical engine</div>
+          </div>
+          <div>
+            <label>Decay Constant λ (per second)</label>
+            <input type="number" id="lambdaVal" value="0.1" min="0.0001" max="10" step="0.0001" oninput="updateNucleiHalfLife()">
+          </div>
+          <div class="half-life-display">T½ = ln(2)/λ <span id="nucleiHalfLife">6.93 s</span></div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Simulation Speed</div>
+        <div class="panel-body">
+          <div class="speed-group">
+            <div class="speed-btn active" id="speed1x" onclick="setSpeed(1)">1×</div>
+            <div class="speed-btn" id="speed5x" onclick="setSpeed(5)">5×</div>
+            <div class="speed-btn" id="speed20x" onclick="setSpeed(20)">20×</div>
+            <div class="speed-btn" id="speed100x" onclick="setSpeed(100)">100×</div>
+          </div>
+          <div class="timer-display" id="timerDisplay">t = 0.00 s</div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Controls</div>
+        <div class="panel-body">
+          <button class="btn-primary" id="startStopBtn" onclick="toggleNucleiSim()">▶ START</button>
+          <button class="btn-secondary" onclick="stepNuclei()">Step +0.1s</button>
+          <button class="btn-danger" onclick="resetNuclei()">Reset</button>
+        </div>
+      </div>
+      <div class="info-box" id="nucleiInfoBox">
+        <strong>Statistical engine:</strong> Above 500 nuclei, decay is computed via Binomial sampling — one calculation per tick instead of N. Visual icons each represent a bundle of nuclei.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONSTANTS & STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+const INDIVIDUAL_THRESHOLD = 500;  // below this: per-nucleus array; above: statistical
+const MAX_ICONS = 100;             // max visual icons in grid
+const ICON_SIZE = 34;              // px per icon (canvas)
+const ICON_GAP = 6;
+
+let mode = 'dice', activeTab = 'grid';
+
+// Dice state
+let diceState = [], rollCount = 0, diceCondition = 1, diceTotal = 100;
+
+// Nuclei state — two paths depending on N
+let nucleiTotal = 200;
+let nucleiRemaining = 0;          // scalar — always used
+let nucleiIndividual = [];        // only populated when N <= INDIVIDUAL_THRESHOLD
+let nucleiTime = 0, lambda = 0.1;
+let simRunning = false, simInterval = null, simSpeed = 1;
+const simStep = 0.1, TICK_MS = 100;
+
+// Shared data log
+let dataLog = []; // [{step, remaining, decayed, fraction}]
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FAST MATH: Binomial sampler via Normal approximation (valid for large N)
+// For small N falls back to exact coin-flip sum
+// ═══════════════════════════════════════════════════════════════════════════════
+function sampleBinomial(n, p) {
+  if (n === 0) return 0;
+  if (p <= 0) return 0;
+  if (p >= 1) return n;
+  // For large n use normal approximation with continuity correction
+  if (n > 200) {
+    const mu = n * p;
+    const sigma = Math.sqrt(n * p * (1 - p));
+    // Box-Muller gaussian
+    const u1 = Math.random(), u2 = Math.random();
+    const gauss = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return Math.min(n, Math.max(0, Math.round(mu + sigma * gauss)));
+  }
+  // Exact for small n
+  let count = 0;
+  for (let i = 0; i < n; i++) if (Math.random() < p) count++;
+  return count;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TABS & MODE
+// ═══════════════════════════════════════════════════════════════════════════════
+function showTab(t) {
+  activeTab = t;
+  document.getElementById('tabGrid').classList.toggle('active', t === 'grid');
+  document.getElementById('tabGraph').classList.toggle('active', t === 'graph');
+  document.getElementById('paneGrid').classList.toggle('active', t === 'grid');
+  document.getElementById('paneGraph').classList.toggle('active', t === 'graph');
+  if (t === 'graph') drawChart();
+  if (t === 'grid') drawBundleGrid();
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('btnDiceMode').classList.toggle('active', m === 'dice');
+  document.getElementById('btnNucleiMode').classList.toggle('active', m === 'nuclei');
+  document.getElementById('diceModePanel').classList.toggle('visible', m === 'dice');
+  document.getElementById('nucleiModePanel').classList.toggle('visible', m === 'nuclei');
+  document.getElementById('stepLabel').textContent = m === 'dice' ? 'Roll' : 'Time (s)';
+  document.getElementById('decayedLabel').textContent = 'Decayed';
+  document.getElementById('logColA').textContent = m === 'dice' ? 'Roll' : 'Time';
+  updatePerfBadge();
+  drawBundleGrid();
+  updateStats();
+}
+
+function updatePerfBadge() {
+  const badge = document.getElementById('perfBadge');
+  const n = mode === 'dice' ? diceTotal : nucleiTotal;
+  const statistical = n > INDIVIDUAL_THRESHOLD;
+  badge.textContent = statistical ? 'STATISTICAL' : 'INDIVIDUAL';
+  badge.className = 'perf-badge ' + (statistical ? 'statistical' : 'individual');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DICE MODE
+// ═══════════════════════════════════════════════════════════════════════════════
+function initDice() {
+  diceTotal = parseInt(document.getElementById('diceCount').value);
+  diceState = Array.from({length: diceTotal}, () => ({val: rnd6(), decayed: false, justDecayed: false}));
+  rollCount = 0; dataLog = [];
+  document.getElementById('rollBtn').disabled = false;
+  document.getElementById('exportBtn').disabled = true;
+  updatePerfBadge(); updateStats(); drawBundleGrid(); renderLog(); drawChart(); updateDiceHalfLife();
+}
+
+function rnd6() { return Math.floor(Math.random() * 6) + 1; }
+function decayMet(v) { return diceCondition===1 ? v===6 : diceCondition===2 ? v>=5 : v>=4; }
+
+function rollDice() {
+  if (!diceState.length) initDice();
+  if (!diceState.some(d => !d.decayed)) return;
+  rollCount++;
+  let decayed = 0;
+  diceState.forEach(d => {
+    d.justDecayed = false;
+    if (!d.decayed) { d.val = rnd6(); if (decayMet(d.val)) { d.decayed = true; d.justDecayed = true; decayed++; } }
+  });
+  const remaining = diceState.filter(d => !d.decayed).length;
+  dataLog.push({step: rollCount, remaining, decayed, fraction: remaining/diceTotal});
+  updateStats(rollCount, remaining, decayed, remaining/diceTotal);
+  drawBundleGrid(); renderLog();
+  if (activeTab === 'graph') drawChart();
+  document.getElementById('exportBtn').disabled = false;
+  if (remaining === 0) document.getElementById('rollBtn').disabled = true;
+}
+
+function resetDice() { initDice(); }
+function updateDiceCount() {
+  document.getElementById('diceCountVal').textContent = document.getElementById('diceCount').value;
+  resetDice();
+}
+function setCondition(c) {
+  diceCondition = c;
+  ['cond6','cond56','cond456'].forEach((id,i) => document.getElementById(id).classList.toggle('active', i+1===c));
+  updateDiceHalfLife(); if (activeTab==='graph') drawChart();
+}
+function updateDiceHalfLife() {
+  const p = diceCondition===1 ? 1/6 : diceCondition===2 ? 1/3 : 1/2;
+  document.getElementById('diceHalfLife').textContent = (Math.log(2)/-Math.log(1-p)).toFixed(2) + ' rolls';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NUCLEI MODE
+// ═══════════════════════════════════════════════════════════════════════════════
+function initNuclei() {
+  nucleiTotal = Math.min(1000000, Math.max(10, parseInt(document.getElementById('nucleiCount').value) || 200));
+  document.getElementById('nucleiCount').value = nucleiTotal;
+  lambda = parseFloat(document.getElementById('lambdaVal').value) || 0.1;
+  nucleiTime = 0; dataLog = [];
+  nucleiRemaining = nucleiTotal;
+  nucleiIndividual = nucleiTotal <= INDIVIDUAL_THRESHOLD
+    ? Array.from({length: nucleiTotal}, (_,i) => ({id:i, decayed:false, justDecayed:false}))
+    : [];
+  updateNucleiHalfLife(); updatePerfBadge();
+  updateStats(0, nucleiTotal, 0, 1);
+  drawBundleGrid(); renderLog(); drawChart();
+  document.getElementById('timerDisplay').textContent = 't = 0.00 s';
+  document.getElementById('timerDisplay').classList.remove('running');
+  document.getElementById('startStopBtn').textContent = '▶ START';
+  document.getElementById('exportBtn').disabled = true;
+}
+
+function updateNucleiHalfLife() {
+  lambda = parseFloat(document.getElementById('lambdaVal').value) || 0.1;
+  document.getElementById('nucleiHalfLife').textContent = (Math.log(2)/lambda).toFixed(2) + ' s';
+}
+
+function setSpeed(s) {
+  simSpeed = s;
+  ['speed1x','speed5x','speed20x','speed100x'].forEach(id => document.getElementById(id).classList.remove('active'));
+  document.getElementById('speed'+s+'x').classList.add('active');
+}
+
+function toggleNucleiSim() {
+  if (nucleiRemaining === 0 || !dataLog.length && nucleiIndividual.length === 0 && nucleiTotal === 0) initNuclei();
+  if (nucleiRemaining === 0) { initNuclei(); return; }
+  simRunning ? pauseNuclei() : startNuclei();
+}
+function startNuclei() {
+  if (!nucleiRemaining) initNuclei();
+  simRunning = true;
+  document.getElementById('startStopBtn').textContent = '⏸ PAUSE';
+  document.getElementById('timerDisplay').classList.add('running');
+  simInterval = setInterval(tickNuclei, TICK_MS);
+}
+function pauseNuclei() {
+  simRunning = false; clearInterval(simInterval);
+  document.getElementById('startStopBtn').textContent = '▶ RESUME';
+  document.getElementById('timerDisplay').classList.remove('running');
+}
+function stepNuclei() {
+  if (nucleiTotal === 0) initNuclei();
+  tickNuclei();
+}
+
+function tickNuclei() {
+  if (nucleiRemaining <= 0) { pauseNuclei(); document.getElementById('startStopBtn').textContent = '▶ START'; return; }
+
+  const dt = simStep * simSpeed;
+  nucleiTime += dt;
+  const pDecay = 1 - Math.exp(-lambda * dt);
+  let decayed = 0;
+
+  if (nucleiTotal <= INDIVIDUAL_THRESHOLD) {
+    // ── Individual path: iterate per-nucleus array ──────────────────────────
+    nucleiIndividual.forEach(n => {
+      n.justDecayed = false;
+      if (!n.decayed && Math.random() < pDecay) { n.decayed = true; n.justDecayed = true; decayed++; }
+    });
+    nucleiRemaining = nucleiIndividual.filter(n => !n.decayed).length;
+  } else {
+    // ── Statistical path: one Binomial draw ─────────────────────────────────
+    decayed = sampleBinomial(nucleiRemaining, pDecay);
+    nucleiRemaining = Math.max(0, nucleiRemaining - decayed);
+  }
+
+  dataLog.push({step: +nucleiTime.toFixed(2), remaining: nucleiRemaining, decayed, fraction: nucleiRemaining/nucleiTotal});
+  if (dataLog.length > 800) dataLog.shift();
+
+  document.getElementById('timerDisplay').textContent = `t = ${nucleiTime.toFixed(2)} s`;
+  updateStats(nucleiTime.toFixed(2), nucleiRemaining, decayed, nucleiRemaining/nucleiTotal);
+  drawBundleGrid(); renderLog();
+  if (activeTab === 'graph') drawChart();
+  document.getElementById('exportBtn').disabled = false;
+
+  if (nucleiRemaining <= 0) { pauseNuclei(); document.getElementById('startStopBtn').textContent = '▶ START'; }
+}
+
+function resetNuclei() { pauseNuclei(); initNuclei(); }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUNDLE GRID — Canvas renderer, O(MAX_ICONS) regardless of N
+// ═══════════════════════════════════════════════════════════════════════════════
+function drawBundleGrid() {
+  const canvas = document.getElementById('bundleCanvas');
+  const pane = document.getElementById('paneGrid');
+  const W = pane.clientWidth || 600;
+  const H = pane.clientHeight - 28 || 200; // subtract bundle-label height
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // Determine total, remaining, and whether we are in dice or nuclei mode
+  const total = mode === 'dice' ? diceTotal : nucleiTotal;
+  let remaining;
+  if (mode === 'dice') {
+    remaining = dataLog.length ? dataLog[dataLog.length-1].remaining : total;
+  } else {
+    remaining = (nucleiTotal > 0) ? nucleiRemaining : total;
+  }
+
+  if (total === 0) return;
+
+  // How many icons to show and what each represents
+  const numIcons = Math.min(total, MAX_ICONS);
+  const nucleiPerIcon = total / numIcons; // may be fractional
+
+  // Compute fill level per icon (0=fully decayed, 1=fully active)
+  // Icon i represents nuclei in range [i*nucleiPerIcon, (i+1)*nucleiPerIcon)
+  // We use a simple linear mapping: fraction remaining applied uniformly
+  const fractionRemaining = remaining / total;
+
+  // For individual mode, build per-icon exact counts from diceState / nucleiIndividual
+  let iconFills = new Array(numIcons);
+  if (mode === 'dice' && diceState.length > 0) {
+    // Map each die to an icon bucket
+    const buckets = new Array(numIcons).fill(0);
+    const bucketTotal = new Array(numIcons).fill(0);
+    diceState.forEach((d, i) => {
+      const bucket = Math.min(numIcons-1, Math.floor(i / diceTotal * numIcons));
+      bucketTotal[bucket]++;
+      if (!d.decayed) buckets[bucket]++;
+    });
+    for (let i = 0; i < numIcons; i++) {
+      iconFills[i] = bucketTotal[i] > 0 ? buckets[i] / bucketTotal[i] : 0;
+    }
+  } else if (mode === 'nuclei' && nucleiTotal <= INDIVIDUAL_THRESHOLD && nucleiIndividual.length > 0) {
+    const buckets = new Array(numIcons).fill(0);
+    const bucketTotal = new Array(numIcons).fill(0);
+    nucleiIndividual.forEach((n, i) => {
+      const bucket = Math.min(numIcons-1, Math.floor(i / nucleiTotal * numIcons));
+      bucketTotal[bucket]++;
+      if (!n.decayed) buckets[bucket]++;
+    });
+    for (let i = 0; i < numIcons; i++) {
+      iconFills[i] = bucketTotal[i] > 0 ? buckets[i] / bucketTotal[i] : 0;
+    }
+  } else {
+    // Statistical mode: distribute remaining uniformly — icons decay from right to left
+    // for a nicer visual. We "fill" icons greedily left-to-right.
+    let rem = remaining;
+    for (let i = 0; i < numIcons; i++) {
+      const thisIconNuclei = nucleiPerIcon;
+      if (rem >= thisIconNuclei) { iconFills[i] = 1.0; rem -= thisIconNuclei; }
+      else if (rem > 0) { iconFills[i] = rem / thisIconNuclei; rem = 0; }
+      else { iconFills[i] = 0; }
+    }
+  }
+
+  // Layout: fit icons into canvas with padding
+  const PAD = 14;
+  const availW = W - PAD * 2;
+  const availH = H - PAD * 2;
+  const iconsPerRow = Math.max(1, Math.floor((availW + ICON_GAP) / (ICON_SIZE + ICON_GAP)));
+  const rows = Math.ceil(numIcons / iconsPerRow);
+  const totalGridH = rows * (ICON_SIZE + ICON_GAP) - ICON_GAP;
+  const startY = PAD + Math.max(0, (availH - totalGridH) / 2);
+
+  if (numIcons === 0 || total === 0) {
+    ctx.fillStyle = '#8a8780'; ctx.font = '13px IBM Plex Sans, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(mode==='dice' ? 'Press ROLL to start' : 'Press START to begin', W/2, H/2);
+    return;
+  }
+
+  for (let i = 0; i < numIcons; i++) {
+    const col = i % iconsPerRow;
+    const row = Math.floor(i / iconsPerRow);
+    const x = PAD + col * (ICON_SIZE + ICON_GAP);
+    const y = startY + row * (ICON_SIZE + ICON_GAP);
+    const fill = iconFills[i];
+
+    if (mode === 'dice') {
+      drawDieIcon(ctx, x, y, ICON_SIZE, fill, i, diceState);
+    } else {
+      drawNucleusIcon(ctx, x, y, ICON_SIZE, fill);
+    }
+  }
+
+  // Bundle label
+  const bundleLabel = document.getElementById('bundleLabel');
+  if (numIcons < total) {
+    const n = Math.round(nucleiPerIcon);
+    bundleLabel.textContent = `Each icon ≈ ${n.toLocaleString()} ${mode==='dice'?'dice':'nuclei'}`;
+  } else {
+    bundleLabel.textContent = '';
+  }
+}
+
+function drawDieIcon(ctx, x, y, size, fill, globalIdx, state) {
+  // For individual dice: show actual value
+  const isDiceMode = state && state.length > 0 && globalIdx < state.length;
+  const die = isDiceMode ? state[globalIdx] : null;
+  const decayed = fill === 0 || (die && die.decayed);
+  const justDecayed = die && die.justDecayed;
+  const val = die ? die.val : 0;
+  const s = size;
+
+  // Shadow
+  if (!decayed) {
+    ctx.shadowColor = 'rgba(0,0,0,0.08)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 2;
+  }
+
+  // Background
+  ctx.fillStyle = decayed ? '#eeecea' : '#ffffff';
+  ctx.globalAlpha = decayed ? 0.45 : 1;
+  roundRect(ctx, x, y, s, s, 6);
+  ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  // Border
+  const isHot = die && !die.decayed && val === 6;
+  ctx.strokeStyle = decayed ? '#d8d5d0' : isHot ? '#c94a2b' : '#d8d5d0';
+  ctx.lineWidth = decayed ? 1 : 1.5;
+  roundRect(ctx, x, y, s, s, 6);
+  ctx.stroke();
+
+  // Number
+  if (die && diceTotal <= MAX_ICONS) {
+    ctx.fillStyle = decayed ? '#8a8780' : isHot ? '#c94a2b' : '#1a1916';
+    ctx.font = `600 ${Math.round(s*0.38)}px IBM Plex Mono, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(val, x + s/2, y + s/2);
+  } else {
+    // Bundled: show fill bar inside die
+    if (!decayed && fill < 1 && fill > 0) {
+      ctx.fillStyle = 'rgba(42,110,63,0.15)';
+      roundRect(ctx, x+2, y + s * (1-fill) + 2, s-4, s * fill - 4, 4);
+      ctx.fill();
+    }
+    ctx.fillStyle = decayed ? '#8a8780' : '#1a1916';
+    ctx.font = `600 ${Math.round(s*0.28)}px IBM Plex Mono, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(Math.round(fill * 100) + '%', x+s/2, y+s/2);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawNucleusIcon(ctx, x, y, size, fill) {
+  const cx = x + size/2, cy = y + size/2;
+  const r = size * 0.42;
+  const decayed = fill === 0;
+  const partial = fill > 0 && fill < 0.99;
+  ctx.globalAlpha = decayed ? 0.3 : 1;
+
+  // Shadow for active
+  if (!decayed) { ctx.shadowColor = 'rgba(42,110,63,0.3)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2; }
+
+  // Outer glow ring for partially decayed
+  if (partial) {
+    ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(201,74,43,0.12)'; ctx.fill();
+  }
+
+  // Nucleus body
+  const grad = ctx.createRadialGradient(cx - r*0.25, cy - r*0.25, r*0.05, cx, cy, r);
+  if (decayed) {
+    grad.addColorStop(0, '#c0bbb5'); grad.addColorStop(1, '#8a8780');
+  } else if (partial) {
+    const g = 110 + Math.round(fill * 90);
+    grad.addColorStop(0, `rgb(90,${g+50},100)`); grad.addColorStop(1, `rgb(30,${g},50)`);
+  } else {
+    grad.addColorStop(0, '#5ab875'); grad.addColorStop(1, '#2a6e3f');
+  }
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  // Specular highlight
+  if (!decayed) {
+    ctx.beginPath(); ctx.ellipse(cx - r*0.28, cy - r*0.28, r*0.25, r*0.16, -Math.PI/4, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.38)'; ctx.fill();
+  }
+
+  // Fill percentage label for bundled
+  if (fill > 0 && fill < 0.99) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = `600 ${Math.round(size*0.26)}px IBM Plex Mono, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(Math.round(fill*100)+'%', cx, cy);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATS & LOG
+// ═══════════════════════════════════════════════════════════════════════════════
+function updateStats(step, remaining, decayed, fraction) {
+  if (step === undefined) {
+    document.getElementById('statStep').textContent = '—';
+    const tot = mode==='dice' ? diceTotal : nucleiTotal;
+    document.getElementById('statRemaining').textContent = tot > 0 ? tot.toLocaleString() : '—';
+    document.getElementById('statDecayed').textContent = '—';
+    document.getElementById('statFraction').textContent = tot > 0 ? '1.000' : '—';
+    return;
+  }
+  document.getElementById('statStep').textContent = step;
+  document.getElementById('statRemaining').textContent = (remaining||0).toLocaleString();
+  document.getElementById('statDecayed').textContent = (decayed||0).toLocaleString();
+  document.getElementById('statFraction').textContent = fraction !== undefined ? fraction.toFixed(3) : '—';
+}
+
+function renderLog() {
+  const body = document.getElementById('logBody');
+  if (!dataLog.length) { body.innerHTML = '<div style="padding:12px; font-size:12px; color:var(--text-muted); text-align:center">Run the simulation to see data here</div>'; return; }
+  body.innerHTML = [...dataLog].reverse().slice(0, 60).map((r, i) =>
+    `<div class="log-row ${i===0?'latest':''}">
+      <div>${r.step}</div>
+      <div class="rc">${r.remaining.toLocaleString()}</div>
+      <div class="dc">−${r.decayed.toLocaleString()}</div>
+      <div>${r.fraction.toFixed(3)}</div>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LIVE CHART
+// ═══════════════════════════════════════════════════════════════════════════════
+function drawChart() {
+  const canvas = document.getElementById('liveChart');
+  const pane = document.getElementById('paneGraph');
+  const W = pane.clientWidth - 28;
+  const H = 190;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const P = {top:14, right:18, bottom:38, left:58};
+  const cW = W-P.left-P.right, cH = H-P.top-P.bottom;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#f5f4f0'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffffff'; ctx.fillRect(P.left,P.top,cW,cH);
+
+  const total = mode==='dice' ? diceTotal : nucleiTotal;
+  const p = diceCondition===1?1/6:diceCondition===2?1/3:1/2;
+
+  if (!dataLog.length) {
+    ctx.fillStyle='#8a8780'; ctx.font='12px IBM Plex Sans,sans-serif'; ctx.textAlign='center';
+    ctx.fillText('No data yet', W/2, H/2);
+    return;
+  }
+
+  const maxStep = dataLog[dataLog.length-1].step;
+  const xRange = Math.max(maxStep*1.05, mode==='dice'?5:0.5);
+
+  // Grid
+  ctx.strokeStyle='#eeecea'; ctx.lineWidth=1;
+  for (let i=0; i<=5; i++) {
+    const y = P.top+cH-(i/5)*cH;
+    ctx.beginPath(); ctx.moveTo(P.left,y); ctx.lineTo(P.left+cW,y); ctx.stroke();
+    ctx.fillStyle='#8a8780'; ctx.font='10px IBM Plex Mono,monospace'; ctx.textAlign='right';
+    const label = total > 9999 ? (((i/5)*total)/1000).toFixed(0)+'k' : Math.round((i/5)*total);
+    ctx.fillText(label, P.left-4, y+3.5);
+  }
+  const xTicks = Math.min(dataLog.length, 7);
+  for (let i=0; i<=xTicks; i++) {
+    const xVal=(i/xTicks)*xRange;
+    const x=P.left+(xVal/xRange)*cW;
+    ctx.beginPath(); ctx.moveTo(x,P.top); ctx.lineTo(x,P.top+cH); ctx.stroke();
+    ctx.fillStyle='#8a8780'; ctx.font='10px IBM Plex Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText(mode==='dice'?Math.round(xVal):xVal.toFixed(1), x, P.top+cH+15);
+  }
+
+  // Axis labels
+  ctx.fillStyle='#8a8780'; ctx.font='11px IBM Plex Sans,sans-serif'; ctx.textAlign='center';
+  ctx.fillText(mode==='dice'?'Roll Number':'Time (s)', P.left+cW/2, H-4);
+  ctx.save(); ctx.translate(11,P.top+cH/2); ctx.rotate(-Math.PI/2); ctx.fillText('N (remaining)',0,0); ctx.restore();
+
+  // Theoretical
+  ctx.beginPath(); ctx.strokeStyle='rgba(201,74,43,0.45)'; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+  for (let px=0; px<=cW; px++) {
+    const xVal=(px/cW)*xRange;
+    const yVal=mode==='dice'?total*Math.pow(1-p,xVal):total*Math.exp(-lambda*xVal);
+    const y=P.top+cH-(yVal/total)*cH;
+    px===0?ctx.moveTo(P.left+px,y):ctx.lineTo(P.left+px,y);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // Actual line
+  ctx.beginPath(); ctx.strokeStyle='#2a6e3f'; ctx.lineWidth=2;
+  dataLog.forEach((r,i)=>{
+    const x=P.left+(r.step/xRange)*cW;
+    const y=P.top+cH-(r.remaining/total)*cH;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // Dots (thinned)
+  ctx.fillStyle='#2a6e3f';
+  const skip=Math.max(1,Math.floor(dataLog.length/60));
+  dataLog.forEach((r,i)=>{
+    if (i%skip!==0 && i!==dataLog.length-1) return;
+    const x=P.left+(r.step/xRange)*cW;
+    const y=P.top+cH-(r.remaining/total)*cH;
+    ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill();
+  });
+
+  // Half-life marker
+  const hl = mode==='dice'?Math.log(2)/-Math.log(1-p):Math.log(2)/lambda;
+  document.getElementById('legendHl').textContent = `T½ = ${hl.toFixed(2)} ${mode==='dice'?'rolls':'s'}`;
+  if (hl<=xRange) {
+    const hlX=P.left+(hl/xRange)*cW;
+    ctx.beginPath(); ctx.strokeStyle='rgba(201,74,43,0.45)'; ctx.lineWidth=1; ctx.setLineDash([2,3]);
+    ctx.moveTo(hlX,P.top); ctx.lineTo(hlX,P.top+cH); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='rgba(201,74,43,0.75)'; ctx.font='bold 10px IBM Plex Sans,sans-serif'; ctx.textAlign='center';
+    ctx.fillText('T½',hlX,P.top+9);
+  }
+
+  ctx.strokeStyle='#d8d5d0'; ctx.lineWidth=1; ctx.strokeRect(P.left,P.top,cW,cH);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXCEL EXPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+function exportExcel() {
+  if (!dataLog.length) return;
+  const stepLabel = mode==='dice'?'Roll':'Time (s)';
+  const total = mode==='dice'?diceTotal:nucleiTotal;
+  const p = diceCondition===1?1/6:diceCondition===2?1/3:1/2;
+  const rows = [[stepLabel,'Remaining (N)','Decayed','Fraction Remaining','Theoretical N']];
+  dataLog.forEach(r => {
+    const theory = mode==='dice'
+      ? +(total*Math.pow(1-p,r.step)).toFixed(3)
+      : +(total*Math.exp(-lambda*r.step)).toFixed(3);
+    rows.push([r.step, r.remaining, r.decayed, +r.fraction.toFixed(4), theory]);
+  });
+  loadJSZip().then(JSZip => {
+    const strs=[],idx={};
+    function ss(v){const s=String(v);if(s in idx)return idx[s];idx[s]=strs.length;strs.push(s);return strs.length-1;}
+    const cols='ABCDE';
+    let sheet=`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>`;
+    rows.forEach((row,ri)=>{
+      sheet+=`<row r="${ri+1}">`;
+      row.forEach((cell,ci)=>{
+        const coord=cols[ci]+(ri+1);
+        if(ri===0||typeof cell==='string') sheet+=`<c r="${coord}" t="s"><v>${ss(cell)}</v></c>`;
+        else sheet+=`<c r="${coord}"><v>${cell}</v></c>`;
+      });
+      sheet+=`</row>`;
+    });
+    sheet+=`</sheetData></worksheet>`;
+    const ssXML=`<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${strs.length}" uniqueCount="${strs.length}">${strs.map(s=>`<si><t>${esc(s)}</t></si>`).join('')}</sst>`;
+    const wbXML=`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Decay Data" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+    const wbRels=`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>`;
+    const ct=`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>`;
+    const rels=`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+    const zip=new JSZip();
+    zip.file('[Content_Types].xml',ct);
+    zip.folder('_rels').file('.rels',rels);
+    const xl=zip.folder('xl');
+    xl.file('workbook.xml',wbXML); xl.file('sharedStrings.xml',ssXML);
+    xl.folder('_rels').file('workbook.xml.rels',wbRels);
+    xl.folder('worksheets').file('sheet1.xml',sheet);
+    zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}).then(blob=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`decay-lab-${mode}-${new Date().toISOString().slice(0,10)}.xlsx`;
+      a.click(); URL.revokeObjectURL(a.href);
+    });
+  });
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let _jszip=null;
+function loadJSZip(){
+  if(_jszip) return Promise.resolve(_jszip);
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload=()=>{_jszip=window.JSZip;res(_jszip);}; s.onerror=rej;
+    document.head.appendChild(s);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════════
+updateDiceHalfLife();
+initDice();
+window.addEventListener('resize', () => {
+  drawBundleGrid();
+  if (activeTab==='graph') drawChart();
+});
+</script>
+</body>
+</html>
